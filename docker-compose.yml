@@ -1,0 +1,48 @@
+version: '3'
+
+services:
+  hub-agent:
+    image: ghcr.io/traefik/hub-agent-traefik:v1.1.0
+    pull_policy: always
+    container_name: hub-agent
+    restart: "on-failure"
+    command:
+      - run
+      - --hub.token=8a66d3fc-6ada-4883-a45c-29cc47c779f1
+      - --auth-server.advertise-url=http://hub-agent
+      - --traefik.host=traefik
+      - --traefik.tls.insecure=true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+    - traefik-hub
+    depends_on:
+      - traefik
+
+  # Start Traefik with the latest version
+  traefik:
+    image: traefik:v2.9
+    container_name: traefik
+    command:
+      # Enable Hub communication (open the port 9900 and 9901 by default)
+      - --experimental.hub=true
+      - --hub.tls.insecure=true
+      - --metrics.prometheus.addrouterslabels=true
+    networks:
+      - traefik-hub
+  
+  ems_checking:
+    build: /ems-checking
+    command: uvicorn ems-checking.main:app --reload --host 0.0.0.0 --port 9000
+    networks:
+      - traefik-hub
+    volumes:
+      - .:/ems-checking/
+    ports:
+      - 9000:9000
+    restart: always
+
+networks:
+  traefik-hub: {}
+  traefik-networks:
+    external: true
